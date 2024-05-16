@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Procesamiento de Imágenes con TensorFlow.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+      img,
+      canvas {
+        max-width: 100%;
+        height: auto;
+        margin-top: 20px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .title {
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>Cargar Imagen</h2>
+      <input type="file" id="imageInput" accept="image/*" />
+
+      <h2 class="title">Imagen Original</h2>
+      <img id="originalImage" alt="Imagen original" style="display: none" />
+
+      <h2 class="title">Recortada</h2>
+      <canvas id="croppedCanvas"></canvas>
+
+      <h2 class="title">Redimensionada (Método 1)</h2>
+      <canvas id="resizedCanvas1"></canvas>
+
+      <h2 class="title">Redimensionada (Método 2)</h2>
+      <canvas id="resizedCanvas2"></canvas>
+
+      <h2 class="title">Redimensionada y Espejada</h2>
+      <canvas id="flippedCanvas"></canvas>
+    </div>
+
+    <script>
+      document
+        .getElementById("imageInput")
+        .addEventListener("change", function (event) {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const imageElement = document.getElementById("originalImage");
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            imageElement.src = e.target.result;
+            imageElement.style.display = "block";
+            imageElement.onload = function () {
+              processImage(imageElement);
+            };
+          };
+          reader.readAsDataURL(file);
+        });
+
+      async function processImage(imageElement) {
+        console.log("Imagen cargada y comenzando el procesamiento");
+
+        // Convertir la imagen a un tensor
+        const tensor = tf.browser
+          .fromPixels(imageElement)
+          .toFloat()
+          .div(tf.scalar(255));
+        console.log("Tensor creado:", tensor);
+
+        // Recortar la imagen (por ejemplo, un recorte centrado de 100x100)
+        const croppedTensor = tf.image
+          .cropAndResize(
+            tensor.expandDims(0), // Añadir una dimensión para batch
+            [[0.25, 0.25, 0.75, 0.75]], // Coordenadas del recorte [y1, x1, y2, x2]
+            [0], // Caja de recorte a usar (solo una imagen, por eso 0)
+            [100, 100] // Tamaño del recorte final
+          )
+          .squeeze(); // Quitar la dimensión de batch
+        console.log("Tensor recortado:", croppedTensor);
+
+        // Mostrar la imagen recortada
+        await tf.browser.toPixels(
+          croppedTensor.mul(tf.scalar(255)).toInt(),
+          document.getElementById("croppedCanvas")
+        );
+        console.log("Imagen recortada mostrada");
+
+        // Redimensionar la imagen (Método 1)
+        const resizedTensor1 = tf.image.resizeBilinear(tensor, [200, 200]);
+        await tf.browser.toPixels(
+          resizedTensor1.mul(tf.scalar(255)).toInt(),
+          document.getElementById("resizedCanvas1")
+        );
+        console.log("Imagen redimensionada (Método 1) mostrada");
+
+        // Redimensionar la imagen (Método 2)
+        const resizedTensor2 = tf.image.resizeNearestNeighbor(
+          tensor,
+          [200, 200]
+        );
+        await tf.browser.toPixels(
+          resizedTensor2.mul(tf.scalar(255)).toInt(),
+          document.getElementById("resizedCanvas2")
+        );
+        console.log("Imagen redimensionada (Método 2) mostrada");
+
+        // Espejar la imagen redimensionada (usar el resultado del método 1)
+        const flippedTensor = tf.image
+          .flipLeftRight(resizedTensor1.expandDims(0))
+          .squeeze();
+        await tf.browser.toPixels(
+          flippedTensor.mul(tf.scalar(255)).toInt(),
+          document.getElementById("flippedCanvas")
+        );
+        console.log("Imagen redimensionada y espejada mostrada");
+      }
+    </script>
+  </body>
+</html>
